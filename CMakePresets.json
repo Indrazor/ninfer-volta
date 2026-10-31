@@ -70,6 +70,32 @@
         "NINFER_BUILD_ENGINE": "OFF",
         "NINFER_BUILD_APPS": "OFF"
       }
+    },
+    {
+      "name": "v100-release",
+      "displayName": "Tesla V100 (sm_70) product binaries",
+      "inherits": "product",
+      "cacheVariables": {
+        "NINFER_TARGET": "v100"
+      }
+    },
+    {
+      "name": "v100-dev",
+      "displayName": "Tesla V100 products, tests and benchmarks",
+      "inherits": "v100-release",
+      "cacheVariables": {
+        "BUILD_TESTING": "ON",
+        "NINFER_BUILD_BENCHMARKS": "ON"
+      }
+    },
+    {
+      "name": "v100-ops",
+      "displayName": "Tesla V100 Core, Artifact and Ops development",
+      "inherits": "v100-dev",
+      "cacheVariables": {
+        "NINFER_BUILD_ENGINE": "OFF",
+        "NINFER_BUILD_APPS": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -96,6 +122,14 @@
     {
       "name": "dgx-spark-dev",
       "configurePreset": "dgx-spark-dev"
+    },
+    {
+      "name": "v100-release",
+      "configurePreset": "v100-release"
+    },
+    {
+      "name": "v100-ops",
+      "configurePreset": "v100-ops"
     }
   ],
   "testPresets": [
