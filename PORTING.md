@@ -88,6 +88,25 @@ GPU1 capped 250 W, llama-swap isolated; artifact = Qwen3.8-27B NVFP4
 
 ## Milestones
 
+- **M1b done (2026-10-31): Volta ISA emulation tier.** New
+  `src/ops/common/cuda/volta_isa.cuh` reproduces the exact per-lane fragment
+  semantics of the Ampere+ instructions under `__CUDA_ARCH__ < 800`:
+  `ldmatrix{.x2,.x4}{.trans}` via `ld.shared` + address shuffles;
+  `mma.m16n8k16` f16/bf16, `m16n8k8` tf32, `m16n8k32` s8/e4m3,
+  `m16n8k32.block_scale` ue8m0 and `m16n8k64.kind::mxf4nvf4` ue4m3 via
+  shfl-gather + FFMA/IMAD (fragment layouts documented in the header).
+  `cp.async{.ca,.cg,.zfill,cache_hint}` -> synchronous register copies
+  (commit/wait trivially satisfied); `mbarrier`/TMA -> `__trap()` (Hopper
+  data paths must never be instantiated for v100 kernels); L2
+  `createpolicy` -> 0; `cvt.rn.bf16x2.f32` -> intrinsic; `tanh.approx` ->
+  `tanhf`; e2m1 pack -> `__nv_cvt_float2_to_fp4x2` (soft in 12.9, returns
+  `__nv_fp4x2_storage_t`). All hubs routed through
+  `NINFER_VOLTA_ISA`; sm_80+ keeps original PTX byte-for-byte. Standalone
+  probe (`mma/pipeline/nvfp4` include + use) compiles for sm_70: `HUB_OK`.
+  This is the correctness floor; transplanted Volta kernels (M2) replace
+  the hot paths for speed.
+
+
 1. **M0 — scaffold + configure probe** *(done 2026-10-31)*: `v100` scaffolding +
    `tools/volta/scaffold_target_dirs.sh` mirror 189 placeholder files (143
    `.cu`/`.cuh`); first configure pass failed with exactly 16 missing per-target

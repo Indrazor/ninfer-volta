@@ -52,17 +52,25 @@ __device__ __forceinline__ unsigned smem_addr(const void* ptr) {
 }
 
 __device__ __forceinline__ std::uint64_t l2_streaming_policy() {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 800
+    return 0;  // Volta has no L2 cache policies; cp.async emulation ignores them
+#else
     std::uint64_t policy;
     asm volatile("createpolicy.fractional.L2::evict_first.L2::evict_unchanged.b64 %0, 1.0;"
                  : "=l"(policy));
     return policy;
+#endif
 }
 
 __device__ __forceinline__ std::uint64_t l2_retained_policy() {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 800
+    return 0;
+#else
     std::uint64_t policy;
     asm volatile("createpolicy.fractional.L2::evict_last.L2::evict_unchanged.b64 %0, 1.0;"
                  : "=l"(policy));
     return policy;
+#endif
 }
 
 // Permute eight-element vectors within each 64-element row sector.

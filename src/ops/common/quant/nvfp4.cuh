@@ -57,6 +57,21 @@ static_assert(alignof(Nvfp4QuantizedK16) == 8);
 
 __device__ __forceinline__ void
 pack_nvfp4_e2m1x16(const float2 (&values)[8], std::uint32_t& codes_lo, std::uint32_t& codes_hi) {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 800
+    // Soft E2M1 encode (CUDA intrinsic with the same satfinite-RNE semantics as the
+    // PTX cvt; low nibble = .x, high nibble = .y of each pair).
+    std::uint8_t bytes[8];
+#pragma unroll
+    for (int pair = 0; pair < 8; ++pair)
+        bytes[pair] = static_cast<std::uint8_t>(
+            __nv_cvt_float2_to_fp4x2(values[pair], __NV_E2M1, cudaRoundNearest));
+    codes_lo = static_cast<std::uint32_t>(bytes[0]) | (static_cast<std::uint32_t>(bytes[1]) << 8) |
+               (static_cast<std::uint32_t>(bytes[2]) << 16) |
+               (static_cast<std::uint32_t>(bytes[3]) << 24);
+    codes_hi = static_cast<std::uint32_t>(bytes[4]) | (static_cast<std::uint32_t>(bytes[5]) << 8) |
+               (static_cast<std::uint32_t>(bytes[6]) << 16) |
+               (static_cast<std::uint32_t>(bytes[7]) << 24);
+#else
     asm volatile("{\n"
                  ".reg .b8 b0;\n"
                  ".reg .b8 b1;\n"
@@ -82,6 +97,7 @@ pack_nvfp4_e2m1x16(const float2 (&values)[8], std::uint32_t& codes_lo, std::uint
                    "f"(values[2].x), "f"(values[2].y), "f"(values[3].x), "f"(values[3].y),
                    "f"(values[4].x), "f"(values[4].y), "f"(values[5].x), "f"(values[5].y),
                    "f"(values[6].x), "f"(values[6].y), "f"(values[7].x), "f"(values[7].y));
+#endif
 }
 
 // Calibrated activation profile, shared by BF16 inputs and FP32 MMA epilogues.

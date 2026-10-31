@@ -38,9 +38,14 @@ __device__ __forceinline__ float sigmoid(float x) { return 1.0f / (1.0f + expf(-
 
 // Fast tanh-based profile; saturation and rounding differ from sigmoid's expf path.
 __device__ __forceinline__ float sigmoid_approx(float x) {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 800
+    const float y = tanhf(0.5F * x);  // tanh.approx is sm_75+
+    return 0.5F * y + 0.5F;
+#else
     float y;
     asm("tanh.approx.f32 %0, %1;" : "=f"(y) : "f"(0.5F * x));
     return 0.5F * y + 0.5F;
+#endif
 }
 
 __device__ __forceinline__ float softplus(float x) { return (x > 20.0f) ? x : log1pf(expf(x)); }
