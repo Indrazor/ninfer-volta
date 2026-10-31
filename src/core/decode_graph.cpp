@@ -52,7 +52,13 @@ void DecodeGraphSection::capture(cudaStream_t stream, const std::function<void()
     cudaStreamCaptureStatus status;
     cudaGraph_t graph = nullptr;
     check_graph(
+#if CUDART_VERSION >= 13000
         cudaStreamGetCaptureInfo(stream, &status, nullptr, &graph, nullptr, nullptr, nullptr),
+#else
+        // CUDA 12.9 (the sm_70 toolchain) spells this cudaStreamGetCaptureInfo_v2 with the
+        // extra dependency-type parameter absent and no graph-id out parameter position.
+        cudaStreamGetCaptureInfo_v2(stream, &status, nullptr, &graph, nullptr, nullptr),
+#endif
         "cudaStreamGetCaptureInfo");
     if (status != cudaStreamCaptureStatusActive)
         throw std::logic_error("a graph section requires an active parent capture");
@@ -120,16 +126,32 @@ DecodeGraphChild DecodeGraphDefinition::append_to(cudaStream_t stream) const {
     const cudaGraphNode_t* dependencies = nullptr;
     std::size_t count                   = 0;
     check_graph(
+#if CUDART_VERSION >= 13000
         cudaStreamGetCaptureInfo(stream, &status, nullptr, &parent, &dependencies, nullptr, &count),
+#else
+        [&] {
+            cudaGraphNode_t* const* deps_v2 = nullptr;
+            const cudaError_t error =
+                cudaStreamGetCaptureInfo_v2(stream, &status, nullptr, &parent, &deps_v2, &count);
+            dependencies = deps_v2;
+            return error;
+        }(),
+#endif
         "cudaStreamGetCaptureInfo");
     if (!ready() || status != cudaStreamCaptureStatusActive)
         throw std::logic_error("appending a child requires a definition and active capture");
     DecodeGraphChild child;
     check_graph(cudaGraphAddChildGraphNode(&child.node, parent, dependencies, count, graph_),
                 "cudaGraphAddChildGraphNode");
-    check_graph(cudaStreamUpdateCaptureDependencies(stream, &child.node, nullptr, 1,
-                                                    cudaStreamSetCaptureDependencies),
-                "cudaStreamUpdateCaptureDependencies");
+    check_graph(
+#if CUDART_VERSION >= 13000
+        cudaStreamUpdateCaptureDependencies(stream, &child.node, nullptr, 1,
+                                            cudaStreamSetCaptureDependencies),
+#else
+        cudaStreamUpdateCaptureDependencies(stream, &child.node, 1,
+                                            cudaStreamSetCaptureDependencies),
+#endif
+        "cudaStreamUpdateCaptureDependencies");
     return child;
 }
 
