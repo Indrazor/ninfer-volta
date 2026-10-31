@@ -66,9 +66,11 @@ GPU1 capped 250 W, llama-swap isolated; artifact = Qwen3.8-27B NVFP4
 
 ## Milestones
 
-1. **M0 — scaffold + configure probe** *(this commit)*: `v100` target compiles
-   nothing yet; enumerate every `${NINFER_TARGET}` path CMake demands at generate
-   time → that list is the exact file inventory to port.
+1. **M0 — scaffold + configure probe** *(done 2026-10-31)*: `v100` scaffolding +
+   `tools/volta/scaffold_target_dirs.sh` mirror 189 placeholder files (143
+   `.cu`/`.cuh`); first configure pass failed with exactly 16 missing per-target
+   includes, after mirroring `cmake --preset v100-release` configures **clean**
+   on CUDA 12.9.1. Full inventory + transplant mapping: `docs/volta/inventory.md`.
 2. **M1 — green build with fallbacks**: stub/slow Volta sources at every demanded
    path, engine boots with a **v3 artifact** (upstream `tools/upgrade_ninfer_v2_to_v3.py`
    converts the local v2 file; no 24 GB re-download). Correctness: known-prompt
