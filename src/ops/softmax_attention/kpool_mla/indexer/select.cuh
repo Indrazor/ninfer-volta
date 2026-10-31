@@ -1,4 +1,5 @@
 #pragma once
+#include "ops/common/warp_reduce_compat.cuh"
 
 #include "ops/softmax_attention/kpool_mla/indexer/arguments.h"
 #include "ops/softmax_attention/kernels/topk_512.cuh"
@@ -65,8 +66,8 @@ __global__ __launch_bounds__(256, MinBlocks) void indexer_partition_fp8_kernel(
     for (int job = blockIdx.x; job < jobs; job += gridDim.x) {
         const auto mapping =
             dense ? PartitionJob{job / a.partitions, job % a.partitions} : partition_job(a, job);
-        const int slot    = __reduce_or_sync(0xffffffffu, unsigned(mapping.slot));
-        const int part    = __reduce_or_sync(0xffffffffu, unsigned(mapping.part));
+        const int slot    = reduce_or_sync(0xffffffffu, unsigned(mapping.slot));
+        const int part    = reduce_or_sync(0xffffffffu, unsigned(mapping.part));
         const auto column = a.column(slot);
         const int visible = a.ends[column] / 4, first = part * kIndexPartition;
         const int count = min(kIndexPartition, visible - first);

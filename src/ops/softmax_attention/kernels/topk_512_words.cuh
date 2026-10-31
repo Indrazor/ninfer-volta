@@ -1,4 +1,5 @@
 #pragma once
+#include "ops/common/warp_reduce_compat.cuh"
 
 #include "ops/softmax_attention/kernels/topk_512.cuh"
 
@@ -113,8 +114,8 @@ __device__ void select_top512_words(unsigned (&scores)[Items], const Ids& ids, i
             high_difference |= scores[j] ^ unsigned(anchor >> 32);
             if constexpr (!Ids::dense) low_difference |= ids.word(j) ^ unsigned(anchor);
         }
-    unsigned low  = __reduce_or_sync(0xffffffffu, low_difference);
-    unsigned high = __reduce_or_sync(0xffffffffu, high_difference);
+    unsigned low  = reduce_or_sync(0xffffffffu, low_difference);
+    unsigned high = reduce_or_sync(0xffffffffu, high_difference);
     if (tid % 32 == 0) {
         s.temp.differences[tid / 32]     = low;
         s.temp.differences[8 + tid / 32] = high;
@@ -124,8 +125,8 @@ __device__ void select_top512_words(unsigned (&scores)[Items], const Ids& ids, i
         if constexpr (Ids::dense)
             low = unsigned(ids.first) ^ unsigned(ids.first + count - 1);
         else
-            low = __reduce_or_sync(0xffffffffu, tid < 8 ? s.temp.differences[tid] : 0u);
-        high = __reduce_or_sync(0xffffffffu, tid < 8 ? s.temp.differences[8 + tid] : 0u);
+            low = reduce_or_sync(0xffffffffu, tid < 8 ? s.temp.differences[tid] : 0u);
+        high = reduce_or_sync(0xffffffffu, tid < 8 ? s.temp.differences[8 + tid] : 0u);
         if (tid == 0) {
             s.high_shift     = high ? (31 - int(__clz(high))) / 8 * 8 : -1;
             s.low_shift      = low ? (31 - int(__clz(low))) / 8 * 8 : -1;

@@ -1,4 +1,5 @@
 #pragma once
+#include "ops/common/warp_reduce_compat.cuh"
 
 #include "ninfer/kv_cache_format.h"
 #include "ops/common/cuda/reduce.cuh"
@@ -24,7 +25,7 @@ __device__ __forceinline__ void store_fp8_d256(const float (&values)[8], std::ui
         // Nonnegative finite FP32 values have the same unsigned-bit ordering. Native
         // warp reduction keeps two G128 maxima from doubling the shuffle sequence.
         const auto absmax =
-            __uint_as_float(__reduce_max_sync(0xffffffffu, __float_as_uint(maximum)));
+            __uint_as_float(reduce_max_sync(0xffffffffu, __float_as_uint(maximum)));
         const auto quant = common::fp8_ue8m0_scale(absmax);
 #pragma unroll
         for (int j = 0; j < Group / 32; ++j) {

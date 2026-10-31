@@ -1,4 +1,5 @@
 #pragma once
+#include "ops/common/warp_reduce_compat.cuh"
 
 #include "ops/softmax_attention/kpool_mla/indexer/arguments.h"
 #include "ops/common/cuda/mma.cuh"
@@ -37,12 +38,12 @@ __global__ __launch_bounds__(
     if (work.batch < 0) return;
     // These fields are warp-uniform. REDUX preserves their bits and makes that
     // uniformity visible to ptxas, keeping the hot address arithmetic in URs.
-    work.batch    = __reduce_or_sync(0xffffffffu, unsigned(work.batch));
-    work.first    = __reduce_or_sync(0xffffffffu, unsigned(work.first));
-    work.start    = __reduce_or_sync(0xffffffffu, unsigned(work.start));
-    work.step     = __reduce_or_sync(0xffffffffu, unsigned(work.step));
-    work.live     = __reduce_or_sync(0xffffffffu, unsigned(work.live));
-    work.position = __reduce_or_sync(0xffffffffu, unsigned(work.position));
+    work.batch    = reduce_or_sync(0xffffffffu, unsigned(work.batch));
+    work.first    = reduce_or_sync(0xffffffffu, unsigned(work.first));
+    work.start    = reduce_or_sync(0xffffffffu, unsigned(work.start));
+    work.step     = reduce_or_sync(0xffffffffu, unsigned(work.step));
+    work.live     = reduce_or_sync(0xffffffffu, unsigned(work.live));
+    work.position = reduce_or_sync(0xffffffffu, unsigned(work.position));
     const int b = work.batch, first = work.first, start = work.start, step = work.step;
     const int live_end = min(work.live, first + Queries), visible = (work.position + live_end) / 4;
     if (start >= visible) return;

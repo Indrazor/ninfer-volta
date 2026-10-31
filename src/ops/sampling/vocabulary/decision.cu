@@ -1,3 +1,4 @@
+#include "ops/common/warp_reduce_compat.cuh"
 #include "ninfer/ops/vocabulary.h"
 #include "ops/common/host/operands.h"
 #include "ops/sampling/acceptance/kernel.cuh"
@@ -22,9 +23,9 @@ __device__ void distribution(const unsigned long long* input, int cap, int token
     for (; count < limit; ++count) {
         const auto key       = list && cursor < cap ? list[cursor] : 0ULL;
         const auto high      = static_cast<unsigned int>(key >> 32);
-        const auto best_high = __reduce_max_sync(0xffffffffU, high);
+        const auto best_high = reduce_max_sync(0xffffffffU, high);
         const auto low       = high == best_high ? static_cast<unsigned int>(key) : 0U;
-        const auto best_low  = __reduce_max_sync(0xffffffffU, low);
+        const auto best_low  = reduce_max_sync(0xffffffffU, low);
         const auto best      = (static_cast<unsigned long long>(best_high) << 32) | best_low;
         if (!best) break;
         const auto owners = __ballot_sync(0xffffffffU, key == best);

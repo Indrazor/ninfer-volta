@@ -129,13 +129,8 @@ DecodeGraphChild DecodeGraphDefinition::append_to(cudaStream_t stream) const {
 #if CUDART_VERSION >= 13000
         cudaStreamGetCaptureInfo(stream, &status, nullptr, &parent, &dependencies, nullptr, &count),
 #else
-        [&] {
-            cudaGraphNode_t* const* deps_v2 = nullptr;
-            const cudaError_t error =
-                cudaStreamGetCaptureInfo_v2(stream, &status, nullptr, &parent, &deps_v2, &count);
-            dependencies = deps_v2;
-            return error;
-        }(),
+        // CUDA 12.9: same call without the dependency-types out parameter.
+        cudaStreamGetCaptureInfo(stream, &status, nullptr, &parent, &dependencies, &count),
 #endif
         "cudaStreamGetCaptureInfo");
     if (!ready() || status != cudaStreamCaptureStatusActive)

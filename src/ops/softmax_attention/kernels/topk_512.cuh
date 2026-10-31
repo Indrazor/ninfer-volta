@@ -1,4 +1,5 @@
 #pragma once
+#include "ops/common/warp_reduce_compat.cuh"
 
 #include "ops/common/cuda/reduce.cuh"
 #include <cub/block/block_scan.cuh>
@@ -57,17 +58,17 @@ __device__ void select_top512(std::uint64_t (&keys)[Items], int count,
     for (int j = 0; j < Items; ++j)
         if (keys[j]) difference |= keys[j] ^ anchor;
     // OR of differences from any valid anchor gives the exact common prefix.
-    const unsigned low  = __reduce_or_sync(0xffffffffu, unsigned(difference));
-    const unsigned high = __reduce_or_sync(0xffffffffu, unsigned(difference >> 32));
+    const unsigned low  = reduce_or_sync(0xffffffffu, unsigned(difference));
+    const unsigned high = reduce_or_sync(0xffffffffu, unsigned(difference >> 32));
     if (tid % 32 == 0) {
         s.temp.differences[tid / 32]     = low;
         s.temp.differences[8 + tid / 32] = high;
     }
     __syncthreads();
     if (tid < 32) {
-        const unsigned lo = __reduce_or_sync(0xffffffffu, tid < 8 ? s.temp.differences[tid] : 0u);
+        const unsigned lo = reduce_or_sync(0xffffffffu, tid < 8 ? s.temp.differences[tid] : 0u);
         const unsigned hi =
-            __reduce_or_sync(0xffffffffu, tid < 8 ? s.temp.differences[8 + tid] : 0u);
+            reduce_or_sync(0xffffffffu, tid < 8 ? s.temp.differences[8 + tid] : 0u);
         if (tid == 0) {
             s.shift     = ((hi ? 63 - __clz(hi) : 31 - __clz(lo)) / Bits) * Bits;
             s.mask      = s.shift >= 64 - Bits ? 0 : (~std::uint64_t(0) << (s.shift + Bits));

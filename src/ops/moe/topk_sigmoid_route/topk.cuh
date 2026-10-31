@@ -1,4 +1,5 @@
 #pragma once
+#include "ops/common/warp_reduce_compat.cuh"
 #include "ops/moe/kernels/cuda/routing/topk.cuh"
 
 namespace ninfer::ops::detail::moe_cuda::routing {
@@ -30,8 +31,8 @@ __global__ __launch_bounds__(Warps * 32) void sigmoid_correction_top8(
             }
         }
         const auto score   = common::ordered_score_bits(best.score);
-        const auto maximum = __reduce_max_sync(0xffffffff, score);
-        const int selected = __reduce_min_sync(0xffffffff, score == maximum ? best.id : INT_MAX);
+        const auto maximum = reduce_max_sync(0xffffffff, score);
+        const int selected = reduce_min_sync(0xffffffff, score == maximum ? best.id : INT_MAX);
         const float selected_probability = __shfl_sync(0xffffffff, best_probability, selected & 31);
         den += selected_probability;
         if (lane == k) {

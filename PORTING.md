@@ -64,6 +64,28 @@ Acceptance protocol for every milestone: 400-token medians, 3 runs, warm engine,
 GPU1 capped 250 W, llama-swap isolated; artifact = Qwen3.8-27B NVFP4
 (local v2 `11dbbbbbc…`, 23,719,496,192 B).
 
+## Port mechanics (learned at M1, applies to every family)
+
+- A kernel family = (a) shared manifest `sources.cmake` (target-agnostic),
+  (b) shared template launch headers instantiated by per-shape `.cu` files,
+  (c) per-target dirs `${NINFER_TARGET}/` added additively.
+- Shape `.cu` files are **host dispatch only** (`select_q8_n5120_k6144(tokens)`
+  returns a `Q8Launch` function pointer); the Ampere ISA enters each shape TU
+  through the template launch headers (schedule → `cp.async`/`ldmatrix` bodies).
+- Transplant pattern = **contract adapter**:
+  1. exclude Ampere-only shared `.cu` from v100 builds
+     (`if(NOT NINFER_TARGET_V100)` in the shared manifest);
+  2. keep shape files and `select_*` signatures untouched;
+  3. in shared template launch headers, branch on `NINFER_VOLTA`
+     (compile-def the v100 target adds) to route to Volta kernels with the
+     same `launch_*` contracts;
+  4. Volta kernels come from the frozen `geoffwatts-v100` branch
+     (`src/ops/**/volta*|*qpn*|*rowsplit*|.cu|.cuh`, ~280 files) adapted to
+     current interfaces.
+- CUDA-12.9 vs 13.4 API deltas handled once at M1 (`CUDART_VERSION` guards):
+  `cudaMemcpyBatchAsync` (9-arg + const casts), `cudaStreamGetCaptureInfo_v2`,
+  `__reduce_*_sync` → butterfly helpers in `ops/common/warp_reduce_compat.cuh`.
+
 ## Milestones
 
 1. **M0 — scaffold + configure probe** *(done 2026-10-31)*: `v100` scaffolding +
@@ -71,8 +93,20 @@ GPU1 capped 250 W, llama-swap isolated; artifact = Qwen3.8-27B NVFP4
    `.cu`/`.cuh`); first configure pass failed with exactly 16 missing per-target
    includes, after mirroring `cmake --preset v100-release` configures **clean**
    on CUDA 12.9.1. Full inventory + transplant mapping: `docs/volta/inventory.md`.
-2. **M1 — green build with fallbacks**: stub/slow Volta sources at every demanded
-   path, engine boots with a **v3 artifact** (upstream `tools/upgrade_ninfer_v2_to_v3.py`
+2. **M1 — green build with fallbacks** *(compat wave done 2026-10-31)*:
+   CUDA 12.9 API parity landed (transfer.cu `batch_copy_async`, decode_graph.cpp
+   version guards — core lib TU verified green, warp-reduce butterflies +
+   8 call-site rewrites). Measured `v100-release` failure surface: **130 ops TUs,
+   all ptxas ISA wall** (.bf16 ×363,964, ldmatrix ×270,024, mma .m16n8k16
+   ×224,606, cp.async ×185,799, plus .m16n8k32/.block_scale tail). Family
+   breakdown of failing TUs: linear/projection 25, linear/split 19,
+   gated_delta_net 14, linear/add 14, linear/kernels 13, softmax_attention/dense
+   11, linear/swiglu 10, linear/topk 6, moe/kernels 4, kimi_delta_attention 4,
+   linear/pair 3, singles (sliding_window, qsa, sampling, kv_cache ×2,
+   dynamic_grouped_conv ×2, decode_graph). Upstream sync: volta base =
+   `1882c6ad` (0 behind as of 2026-10-31). Remaining M1 work: `NINFER_VOLTA`
+   compile-def + manifest guards + stub/slow Volta sources at every demanded
+   path; engine boots with a **v3 artifact** (upstream `tools/upgrade_ninfer_v2_to_v3.py`
    converts the local v2 file; no 24 GB re-download). Correctness: known-prompt
    outputs + perplexity match vs b37d0dd within noise.
 3. **M2 — linear decode parity**: port `nvfp4/q4/q5/w8` Volta QPN+MMA GEMMs and the

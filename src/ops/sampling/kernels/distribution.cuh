@@ -1,4 +1,5 @@
 #pragma once
+#include "ops/common/warp_reduce_compat.cuh"
 
 #include "ops/sampling/kernels/random.cuh"
 #include "ops/common/numeric/math.h"
@@ -135,9 +136,9 @@ sampling_store_tile_topk(unsigned long long (&keys)[S::kSamplerItemsPerThread], 
             const unsigned long long key =
                 storage.candidates[lane * kSamplerCandidateCap + position];
             const unsigned int high     = static_cast<unsigned int>(key >> 32);
-            const unsigned int max_high = __reduce_max_sync(kMergeMask, high);
+            const unsigned int max_high = reduce_max_sync(kMergeMask, high);
             const unsigned int low      = high == max_high ? static_cast<unsigned int>(key) : 0u;
-            const unsigned int max_low  = __reduce_max_sync(kMergeMask, low);
+            const unsigned int max_low  = reduce_max_sync(kMergeMask, low);
             const unsigned int winners =
                 __ballot_sync(kMergeMask, high == max_high && low == max_low);
             const int source = __ffs(static_cast<int>(winners)) - 1;
@@ -174,7 +175,7 @@ sampling_store_bf16_tile_topk(unsigned int (&keys)[S::kSamplerItemsPerThread], i
         int position                      = 0;
         for (int rank = 0; rank < cap; ++rank) {
             const unsigned int key     = storage.candidates[lane * kSamplerCandidateCap + position];
-            const unsigned int best    = __reduce_max_sync(kMergeMask, key);
+            const unsigned int best    = reduce_max_sync(kMergeMask, key);
             const unsigned int winners = __ballot_sync(kMergeMask, key == best);
             const int source           = __ffs(static_cast<int>(winners)) - 1;
             if (lane == 0) {
