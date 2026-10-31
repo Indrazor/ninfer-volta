@@ -42,7 +42,9 @@ __global__ void pre_finish_kernel(Operands o, const float* partial, int parts) {
         // Only the immutable pre input may be read before the projection completes.
         if (warp != 0) load_residual_words<Vector>(o, m, (tid - 32) * Vector, words);
     }
+    #if __CUDA_ARCH__ >= 900
     if constexpr (Dependent) cudaGridDependencySynchronize();
+#endif
     const float projection = reduce_projection<Threads, StaticParts>(partial, parts, m);
     float logit            = 0;
     if (warp == 0) logit = activate_coefficients(o, projection, m, pre);

@@ -19,7 +19,9 @@ __global__ __launch_bounds__(Threads) void projection_vector_kernel(Operands o, 
     constexpr int Chunk = kWidth / Parts, Warps = Threads / 32;
     static_assert(F == Form::Pre || F == Form::ExpandPre);
     static_assert(Chunk == Threads * 8 && kWidth % Parts == 0);
+#if __CUDA_ARCH__ >= 900
     cudaTriggerProgrammaticLaunchCompletion();
+#endif
     const int part = blockIdx.x, row = blockIdx.y;
     const int tid = threadIdx.x, lane = tid & 31, warp = tid / 32, k = part * Chunk + tid * 8;
     const auto fw =

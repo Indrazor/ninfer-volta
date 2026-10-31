@@ -260,7 +260,11 @@ __global__ __launch_bounds__(Cfg::kThreads, Cfg::kMinBlocksPerSm) void q8_a16_tm
             }
         }
         // Order generic Cr/Bs reads before their slot is reused by the TMA writer.
+        #if __CUDA_ARCH__ >= 900
         asm volatile("fence.proxy.async.shared::cta;" ::: "memory");
+        #else
+        __threadfence_block();  // sm_70: generic proxy only; block-scope fence suffices
+        #endif
         __syncthreads();
         if (kt + 3 < nkt) {
             stage_scales.template operator()<Slot>(kt + 3);

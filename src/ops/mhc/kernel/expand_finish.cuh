@@ -26,7 +26,9 @@ __global__ void expand_finish_kernel(Operands o, const float* partial, int parts
                     common::Bf16Vector<Chunk>::load(static_cast<const __nv_bfloat16*>(o.gamma) + d);
             }
         }
+#if __CUDA_ARCH__ >= 900
         cudaGridDependencySynchronize();
+#endif
     }
     const float value = reduce_projection<Threads, StaticParts>(partial, parts, m);
     float logit       = 0;

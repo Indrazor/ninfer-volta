@@ -89,7 +89,11 @@ __global__ __launch_bounds__(
             }
         }
         // Retire every generic-proxy B read before its next async-proxy write.
+        #if __CUDA_ARCH__ >= 900
         asm volatile("fence.proxy.async.shared::cta;" ::: "memory");
+        #else
+        __threadfence_block();  // sm_70: generic proxy only; block-scope fence suffices
+        #endif
         __syncthreads();
         if (threadIdx.x == 0 && kt + 1 < tiles_k) load_b(kt + 1);
         const auto* current_a = a + (kt % 2) * BR * BK;
@@ -112,7 +116,11 @@ __global__ __launch_bounds__(
             }
         }
         // The same CTA owns A reads and the next write into this two-tile ring.
+        #if __CUDA_ARCH__ >= 900
         asm volatile("fence.proxy.async.shared::cta;" ::: "memory");
+        #else
+        __threadfence_block();  // sm_70: generic proxy only; block-scope fence suffices
+        #endif
         __syncthreads();
         if (threadIdx.x == 0 && kt + 2 < tiles_k) load_a(kt + 2);
     }

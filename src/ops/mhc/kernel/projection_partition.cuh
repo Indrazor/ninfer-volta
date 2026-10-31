@@ -16,7 +16,9 @@ __global__ __launch_bounds__(Threads) void projection_partition_kernel(Operands 
     static_assert(Vector == 2 || Vector == 4 || Vector == 8);
     // The dependent finish can prepare independent inputs while this grid projects.
     // Its grid dependency wait owns visibility of partials and updated residuals.
+#if __CUDA_ARCH__ >= 900
     cudaTriggerProgrammaticLaunchCompletion();
+#endif
     __shared__ __align__(16) __nv_bfloat16 a[4][24 * Hidden], x[4][Tokens * Hidden];
     __shared__ float coefficients[F == Form::PostPre ? Tokens : 1][20];
     const int tid = threadIdx.x, warp = tid / 32, lane = tid & 31;

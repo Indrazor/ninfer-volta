@@ -341,7 +341,11 @@ __global__ __launch_bounds__(Cfg::kThreads, Cfg::kMinBlocksPerSm) void q8_a16_tm
         }
         // Every generic read of Cr/Bs must precede the next async-proxy write.
         // CTA synchronization alone does not order accesses across those proxies.
+        #if __CUDA_ARCH__ >= 900
         asm volatile("fence.proxy.async.shared::cta;" ::: "memory");
+        #else
+        __threadfence_block();  // sm_70: generic proxy only; block-scope fence suffices
+        #endif
         __syncthreads();
         if (kt + 2 < nkt) {
             stage_scales.template operator()<Slot>(kt + 2);
