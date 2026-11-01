@@ -31,6 +31,7 @@ __global__ void count_assignments(const int* ids, ExpertSubsetKind kind, const i
 }
 
 __global__ void scan_assignments(Groups g, int columns) {
+    // sm_70 RDC device-link overflows the 48 KiB static-shared budget; use dynamic shared.
     __shared__ int scan[kExperts];
     const int e     = threadIdx.x;
     const int count = g.counts[e];

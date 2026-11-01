@@ -14,7 +14,7 @@ namespace ninfer::ops::common {
 template <int Bytes, auto Kernel, bool AlwaysDynamic = false>
 int prepare_shared() {
     static_assert(Bytes >= 0 && Bytes <= 99 * 1024);
-    if constexpr (Bytes > 48 * 1024 || (AlwaysDynamic && Bytes > 0)) {
+    if constexpr (Bytes >= 48 * 1024 || (AlwaysDynamic && Bytes > 0)) {
         static const cudaError_t status =
             cudaFuncSetAttribute(Kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, Bytes);
         CUDA_CHECK(status);

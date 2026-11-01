@@ -82,8 +82,11 @@ __global__ __launch_bounds__(128) void shared_mma(
     constexpr int BK = 64, BN = Columns, Rows = Gate ? 32 : 64, K = Gate ? kHidden : Intermediate;
     constexpr int WarpColumns = BN / 2, NT = WarpColumns / 8;
     constexpr int Planes = Gate || !SplitActivation ? 1 : 2;
-    __shared__ __align__(16) __nv_bfloat16 ws[2][64 * BK];
-    __shared__ __align__(16) __nv_bfloat16 xs[2][Planes][BN * BK];
+    // sm_70 caps static shared at 48 KiB per kernel; 2*(64*BK + Planes*BN*BK) bf16 exceeds it
+    // for Columns=64.  Dynamic shared (opt-in to 96 KiB below) is the Volta-safe carrier.
+    extern __shared__ __align__(16) unsigned char shared_mma_smem[];
+    auto* ws = reinterpret_cast<__nv_bfloat16(*)[64 * BK]>(shared_mma_smem);
+    auto* xs = reinterpret_cast<__nv_bfloat16(*)[Planes][BN * BK]>(shared_mma_smem + 2 * 64 * BK * sizeof(__nv_bfloat16));
     const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
     const int wm = warp % 2, wn = warp / 2;
     const bool shared_only = control && !scores;
@@ -266,14 +269,24 @@ void launch_shared_impl(const Tensor& x, const ScaledSwiGLUTerm& shared, const E
                 input, down, storage, coefficients, beta, output);
         } else {
             const auto launch = [&]<int Columns>() {
+                constexpr int kSmemGate = (2 * 64 * 64 + 2 * 1 * Columns * 64) * 2;
+                constexpr int kSmemDown = (2 * 64 * 64 + 2 * (SplitActivation ? 2 : 1) * Columns * 64) * 2;
+                (void)cudaFuncSetAttribute(
+                    reinterpret_cast<const void *>(
+                        &shared_mma<true, Columns, Intermediate, SplitActivation, decltype(output)>),
+                    cudaFuncAttributeMaxDynamicSharedMemorySize, kSmemGate);
+                (void)cudaFuncSetAttribute(
+                    reinterpret_cast<const void *>(
+                        &shared_mma<false, Columns, Intermediate, SplitActivation, decltype(output)>),
+                    cudaFuncAttributeMaxDynamicSharedMemorySize, kSmemDown);
                 if (!prepared) {
                     shared_mma<true, Columns, Intermediate, SplitActivation>
-                        <<<dim3(Intermediate / 32, (tokens + Columns - 1) / Columns), 128, 0,
+                        <<<dim3(Intermediate / 32, (tokens + Columns - 1) / Columns), 128, kSmemGate,
                            stream>>>(input, gu, storage, coefficients, beta, output, tokens);
                 }
                 CUDA_CHECK(cudaGetLastError());
                 shared_mma<false, Columns, Intermediate, SplitActivation>
-                    <<<dim3(kHidden / 64, (tokens + Columns - 1) / Columns), 128, 0, stream>>>(
+                    <<<dim3(kHidden / 64, (tokens + Columns - 1) / Columns), 128, kSmemDown, stream>>>(
                         input, down, storage, coefficients, beta, output, tokens);
             };
             if (plan.shared_columns == 64) {
@@ -304,10 +317,15 @@ void launch_control_shared_impl(const Tensor& x, const MoeWeights& weights,
                          shared_gate);
     } else {
         const auto launch = [&]<int Columns>() {
+            constexpr int kSmemGate = (2 * 64 * 64 + 2 * 1 * Columns * 64) * 2;
+            (void)cudaFuncSetAttribute(
+                reinterpret_cast<const void *>(
+                    &shared_mma<true, Columns, Intermediate, SplitActivation, FloatContribution>),
+                cudaFuncAttributeMaxDynamicSharedMemorySize, kSmemGate);
             shared_mma<true, Columns, Intermediate, SplitActivation>
                 <<<dim3(Intermediate / 32 + (routed ? (kExperts + 64) / 64 : 1),
                         (x.ne[1] + Columns - 1) / Columns),
-                   128, 0, stream>>>(input, gu, storage, nullptr, nullptr, FloatContribution{},
+                   128, kSmemGate, stream>>>(input, gu, storage, nullptr, nullptr, FloatContribution{},
                                      x.ne[1], control, scores, shared_gate);
         };
         if (plan.shared_columns == 64) {
