@@ -1,1 +1,4 @@
-# Volta (sm_70): pending port, see PORTING.md
+target_sources(ninfer_ops PRIVATE
+  "${CMAKE_CURRENT_LIST_DIR}/select.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/launch.cu"
+)
