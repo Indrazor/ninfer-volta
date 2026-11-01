@@ -2,6 +2,11 @@
 add_library(ninfer_ops SHARED)
 ninfer_internal_includes(ninfer_ops)
 ninfer_cuda_library(ninfer_ops)
+if(NINFER_TARGET STREQUAL "v100")
+    # Volta software-emulation fatbins make this object several GB wide; unique
+    # PLT entries keep branch targets within PC-relative range across the image.
+    target_link_options(ninfer_ops PRIVATE "SHELL:-Xlinker -z -Xlinker unique")
+endif()
 target_link_libraries(ninfer_ops PUBLIC ninfer_core PRIVATE ninfer_ops_non_rdc)
 
 # Non-RDC kernels keep instruction and register-allocation choices within one translation unit.

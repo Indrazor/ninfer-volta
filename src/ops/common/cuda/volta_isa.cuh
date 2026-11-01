@@ -35,12 +35,12 @@
 
 namespace ninfer::ops::common::volta {
 
-__device__ __forceinline__ std::uint32_t ld_shared_u32(std::uint32_t addr) {
+__device__ __noinline__ std::uint32_t ld_shared_u32(std::uint32_t addr) {
     std::uint32_t v;
     asm("ld.shared.b32 %0, [%1];" : "=r"(v) : "r"(addr));
     return v;
 }
-__device__ __forceinline__ std::uint16_t ld_shared_u16(std::uint32_t addr) {
+__device__ __noinline__ std::uint16_t ld_shared_u16(std::uint32_t addr) {
     std::uint16_t v;
     asm("ld.shared.u16 %0, [%1];" : "=h"(v) : "r"(addr));
     return v;
@@ -48,7 +48,7 @@ __device__ __forceinline__ std::uint16_t ld_shared_u16(std::uint32_t addr) {
 
 // ---------------- ldmatrix ----------------
 
-__device__ __forceinline__ void ldmatrix_x2(std::uint32_t& r0, std::uint32_t& r1,
+__device__ __noinline__ void ldmatrix_x2(std::uint32_t& r0, std::uint32_t& r1,
                                             std::uint32_t addr) {
     const unsigned lane = threadIdx.x & 31u;
     const unsigned rr   = lane >> 2;
@@ -58,7 +58,7 @@ __device__ __forceinline__ void ldmatrix_x2(std::uint32_t& r0, std::uint32_t& r1
     r1 = ld_shared_u32(__shfl_sync(0xffffffffu, addr, static_cast<int>(8u + rr)) + (lane & 3u) * 4u);
 }
 
-__device__ __forceinline__ void ldmatrix_x4(std::uint32_t& r0, std::uint32_t& r1, std::uint32_t& r2,
+__device__ __noinline__ void ldmatrix_x4(std::uint32_t& r0, std::uint32_t& r1, std::uint32_t& r2,
                                             std::uint32_t& r3, std::uint32_t addr) {
     const unsigned lane = threadIdx.x & 31u;
     const unsigned rr   = lane >> 2;
@@ -69,7 +69,7 @@ __device__ __forceinline__ void ldmatrix_x4(std::uint32_t& r0, std::uint32_t& r1
     r3 = ld_shared_u32(__shfl_sync(0xffffffffu, addr, static_cast<int>(24u + rr)) + cp);
 }
 
-__device__ __forceinline__ std::uint32_t ldmatrix_trans_one(std::uint32_t addr, unsigned lane,
+__device__ __noinline__ std::uint32_t ldmatrix_trans_one(std::uint32_t addr, unsigned lane,
                                                             unsigned base) {
     // Transposed distribution: lane holds source rows (lane%4)*2 and +1 at
     // column lane/4; the two rows' addresses come from lanes base+(lane%4)*2, +1.
@@ -82,14 +82,14 @@ __device__ __forceinline__ std::uint32_t ldmatrix_trans_one(std::uint32_t addr, 
     return (static_cast<std::uint32_t>(hi) << 16) | lo;
 }
 
-__device__ __forceinline__ void ldmatrix_x2_trans(std::uint32_t& r0, std::uint32_t& r1,
+__device__ __noinline__ void ldmatrix_x2_trans(std::uint32_t& r0, std::uint32_t& r1,
                                                   std::uint32_t addr) {
     const unsigned lane = threadIdx.x & 31u;
     r0 = ldmatrix_trans_one(addr, lane, 0u);
     r1 = ldmatrix_trans_one(addr, lane, 8u);
 }
 
-__device__ __forceinline__ void ldmatrix_x4_trans(std::uint32_t& r0, std::uint32_t& r1,
+__device__ __noinline__ void ldmatrix_x4_trans(std::uint32_t& r0, std::uint32_t& r1,
                                                   std::uint32_t& r2, std::uint32_t& r3,
                                                   std::uint32_t addr) {
     const unsigned lane = threadIdx.x & 31u;
@@ -101,15 +101,15 @@ __device__ __forceinline__ void ldmatrix_x4_trans(std::uint32_t& r0, std::uint32
 
 // ---------------- format helpers ----------------
 
-__device__ __forceinline__ float2 unpack_f16x2(std::uint32_t reg) {
+__device__ __noinline__ float2 unpack_f16x2(std::uint32_t reg) {
     const __half2 h = *reinterpret_cast<const __half2*>(&reg);
     return __half22float2(h);
 }
-__device__ __forceinline__ float2 unpack_bf16x2(std::uint32_t reg) {
+__device__ __noinline__ float2 unpack_bf16x2(std::uint32_t reg) {
     const __nv_bfloat162 b = *reinterpret_cast<const __nv_bfloat162*>(&reg);
     return __bfloat1622float2(b);
 }
-__device__ __forceinline__ float decode_e2m1_nibble(std::uint32_t nib) {
+__device__ __noinline__ float decode_e2m1_nibble(std::uint32_t nib) {
     const float mag = (nib & 7u) == 0u ? 0.0F
                     : (nib & 7u) == 1u ? 0.5F
                     : (nib & 7u) == 2u ? 1.0F
@@ -120,7 +120,7 @@ __device__ __forceinline__ float decode_e2m1_nibble(std::uint32_t nib) {
                                       : 6.0F;
     return (nib & 8u) ? -mag : mag;
 }
-__device__ __forceinline__ float decode_e4m3_byte(std::uint32_t b) {
+__device__ __noinline__ float decode_e4m3_byte(std::uint32_t b) {
     const unsigned s = (b >> 7) & 1u, e = (b >> 3) & 0xFu, m = b & 7u;
     float v;
     if (e == 0u) {
@@ -134,7 +134,7 @@ __device__ __forceinline__ float decode_e4m3_byte(std::uint32_t b) {
     }
     return s ? -v : v;
 }
-__device__ __forceinline__ float decode_ue8m0_byte(std::uint32_t b) {
+__device__ __noinline__ float decode_ue8m0_byte(std::uint32_t b) {
     // ue8m0: power-of-two exponent, biased by 127.
     return b == 0u ? 0.0F
                    : (b >= 127u ? static_cast<float>(1u << static_cast<int>(b) - 127)
@@ -143,7 +143,7 @@ __device__ __forceinline__ float decode_ue8m0_byte(std::uint32_t b) {
 
 // ---------------- mma.sync emulation ----------------
 
-__device__ __forceinline__ void mma_f16(float& c0, float& c1, float& c2, float& c3,
+__device__ __noinline__ void mma_f16(float& c0, float& c1, float& c2, float& c3,
                                         std::uint32_t a0, std::uint32_t a1, std::uint32_t a2,
                                         std::uint32_t a3, std::uint32_t b0, std::uint32_t b1) {
     const unsigned tid = threadIdx.x & 3;
@@ -160,7 +160,7 @@ __device__ __forceinline__ void mma_f16(float& c0, float& c1, float& c2, float& 
     c3 += A1.x * B0b.x + A1.y * B0b.y + A3.x * B1b.x + A3.y * B1b.y;
 }
 
-__device__ __forceinline__ void mma_bf16(float& c0, float& c1, float& c2, float& c3,
+__device__ __noinline__ void mma_bf16(float& c0, float& c1, float& c2, float& c3,
                                          std::uint32_t a0, std::uint32_t a1, std::uint32_t a2,
                                          std::uint32_t a3, std::uint32_t b0, std::uint32_t b1) {
     const unsigned tid = threadIdx.x & 3;
@@ -177,7 +177,7 @@ __device__ __forceinline__ void mma_bf16(float& c0, float& c1, float& c2, float&
     c3 += A1.x * B0b.x + A1.y * B0b.y + A3.x * B1b.x + A3.y * B1b.y;
 }
 
-__device__ __forceinline__ void mma_tf32(float& c0, float& c1, float& c2, float& c3, float a0,
+__device__ __noinline__ void mma_tf32(float& c0, float& c1, float& c2, float& c3, float a0,
                                          float a1, float a2, float a3, float b0, float b1) {
     const unsigned tid = threadIdx.x & 3;
     const int s0 = static_cast<int>((2u * tid) * 4u + tid), s1 = s0 + 1;
@@ -189,10 +189,10 @@ __device__ __forceinline__ void mma_tf32(float& c0, float& c1, float& c2, float&
     c3 += a1 * B0b + a3 * B1b;
 }
 
-__device__ __forceinline__ int s8_byte(std::uint32_t reg, unsigned i) {
+__device__ __noinline__ int s8_byte(std::uint32_t reg, unsigned i) {
     return static_cast<signed char>((reg >> (8 * i)) & 0xFFu);
 }
-__device__ __forceinline__ void mma_s8(int& c0, int& c1, int& c2, int& c3, std::uint32_t a0,
+__device__ __noinline__ void mma_s8(int& c0, int& c1, int& c2, int& c3, std::uint32_t a0,
                                        std::uint32_t a1, std::uint32_t a2, std::uint32_t a3,
                                        std::uint32_t b0, std::uint32_t b1) {
     const unsigned tid = threadIdx.x & 3;
@@ -212,11 +212,11 @@ __device__ __forceinline__ void mma_s8(int& c0, int& c1, int& c2, int& c3, std::
     }
 }
 
-__device__ __forceinline__ float e4m3_byte(std::uint32_t reg, unsigned i) {
+__device__ __noinline__ float e4m3_byte(std::uint32_t reg, unsigned i) {
     return decode_e4m3_byte((reg >> (8 * i)) & 0xFFu);
 }
 
-__device__ __forceinline__ void mma_fp8_e4m3(float& c0, float& c1, float& c2, float& c3,
+__device__ __noinline__ void mma_fp8_e4m3(float& c0, float& c1, float& c2, float& c3,
                                              std::uint32_t a0, std::uint32_t a1, std::uint32_t a2,
                                              std::uint32_t a3, std::uint32_t b0, std::uint32_t b1) {
     const unsigned tid = threadIdx.x & 3;
@@ -239,7 +239,7 @@ __device__ __forceinline__ void mma_fp8_e4m3(float& c0, float& c1, float& c2, fl
 // scale_vec::1X: one UE8M0 scale (low byte) per mma. Row scale for row lane/4 comes
 // from quad lane 0, row lane/4+8 from quad lane 1; column scale for column j from
 // lane 4*j (tid 0).
-__device__ __forceinline__ void mma_fp8_e4m3_scaled(float& c0, float& c1, float& c2, float& c3,
+__device__ __noinline__ void mma_fp8_e4m3_scaled(float& c0, float& c1, float& c2, float& c3,
                                                     std::uint32_t a0, std::uint32_t a1,
                                                     std::uint32_t a2, std::uint32_t a3,
                                                     std::uint32_t b0, std::uint32_t b1,
@@ -263,10 +263,10 @@ __device__ __forceinline__ void mma_fp8_e4m3_scaled(float& c0, float& c1, float&
 // m16n8k64 e2m1 with scale_vec::4X: four UE4M3 sub-block scales (16 k each) packed
 // in sfa/sfb. This lane's a0/a1 hold k=8t..8t+7 (sub-block t/2), a2/a3 hold
 // k=8t+32..39 (sub-block 2+t/2); sfb must come from the same B-owning lane as b0/b1.
-__device__ __forceinline__ float e2m1_nibble(std::uint32_t reg, unsigned i) {
+__device__ __noinline__ float e2m1_nibble(std::uint32_t reg, unsigned i) {
     return decode_e2m1_nibble((reg >> (4 * i)) & 0xFu);
 }
-__device__ __forceinline__ void mma_nvfp4_e2m1(float& c0, float& c1, float& c2, float& c3,
+__device__ __noinline__ void mma_nvfp4_e2m1(float& c0, float& c1, float& c2, float& c3,
                                                std::uint32_t a0, std::uint32_t a1, std::uint32_t a2,
                                                std::uint32_t a3, std::uint32_t b0, std::uint32_t b1,
                                                std::uint32_t sfa, std::uint32_t sfb) {
@@ -315,7 +315,7 @@ __device__ __forceinline__ void mma_nvfp4_e2m1(float& c0, float& c1, float& c2, 
 // complete at issue. smem visibility for consumers relies on the
 // __syncthreads()/barrier that always follows in these kernels.
 
-__device__ __forceinline__ void cp_async_copy(void* smem_dst, const void* gmem_src,
+__device__ __noinline__ void cp_async_copy(void* smem_dst, const void* gmem_src,
                                               int bytes) {
     auto* dst = static_cast<char*>(smem_dst);
     const char* src = static_cast<const char*>(gmem_src);
@@ -323,7 +323,7 @@ __device__ __forceinline__ void cp_async_copy(void* smem_dst, const void* gmem_s
 }
 
 template <int Bytes>
-__device__ __forceinline__ void cp_async_zfill_emul(void* smem_dst, const void* gmem_src,
+__device__ __noinline__ void cp_async_zfill_emul(void* smem_dst, const void* gmem_src,
                                                     int src_bytes) {
     auto* dst = static_cast<char*>(smem_dst);
     const char* src = static_cast<const char*>(gmem_src);
