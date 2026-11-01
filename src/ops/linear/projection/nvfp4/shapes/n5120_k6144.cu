@@ -1,3 +1,4 @@
+#include "core/platform.h"
 #include "ops/linear/projection/nvfp4/nvfp4_shapes.h"
 #include "ops/linear/projection/nvfp4/nvfp4_launch.cuh"
 #include "ops/linear/kernels/nvfp4/nvfp4_instances.cuh"
@@ -35,7 +36,7 @@ void launch_a16(const Tensor& x, const Weight& w, Tensor& y, cudaStream_t stream
 }
 
 Nvfp4A4Route select_a4(std::int32_t tokens) {
-    if (tokens >= 1024) return nvfp4_a4_tma_route<Nvfp4GeometryId::N5120K6144>();
+    if (tokens >= 1024 && !NINFER_TARGET_V100) return nvfp4_a4_tma_route<Nvfp4GeometryId::N5120K6144>();
     if (tokens <= 128) return nvfp4_a4_mma_route<Geometry, T32R64>();
     if (tokens <= 192) return nvfp4_a4_mma_route<Geometry, T64R128>();
     if (tokens <= 384) return nvfp4_a4_mma_route<Geometry, T128R128Resident>();

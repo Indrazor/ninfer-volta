@@ -1,4 +1,5 @@
 #include "ops/linear/kernels/bf16/bf16_instances.cuh"
+#include "core/platform.h"
 #include "ops/linear/projection/bf16/bf16_shapes.h"
 #include "ops/linear/projection/bf16/bf16_launch.cuh"
 
@@ -20,9 +21,15 @@ Bf16Launch select_bf16_n5120_k6144(std::int32_t tokens) {
         return launch_bf16_sliced_k_mma<Bf16ScheduleInstance<Bf16A16SlicedR32T16W4, 6144>>;
     if (tokens <= 64) return launch_bf16_mma<Bf16ScheduleInstance<Bf16A16MmaR32T32K192S2, 6144>>;
     if (tokens <= 128)
-        return launch_bf16_tma_mma<Bf16ScheduleInstance<Bf16A16TmaR64T64K128S2, 6144>>;
+        return (NINFER_TARGET_V100
+                        ? launch_bf16_mma<Bf16ScheduleInstance<Bf16A16MmaR32T32K192S2, 6144>>
+                        : launch_bf16_tma_mma<Bf16ScheduleInstance<Bf16A16TmaR64T64K128S2, 6144>>);
     if (tokens <= 192)
-        return launch_bf16_tma_mma<Bf16ScheduleInstance<Bf16A16TmaR64T64K64S3, 6144>>;
-    return launch_bf16_tma_mma<Bf16ScheduleInstance<Bf16A16TmaR64T128K64S2, 6144>>;
+        return (NINFER_TARGET_V100
+                        ? launch_bf16_mma<Bf16ScheduleInstance<Bf16A16MmaR32T32K192S2, 6144>>
+                        : launch_bf16_tma_mma<Bf16ScheduleInstance<Bf16A16TmaR64T64K64S3, 6144>>);
+    return (NINFER_TARGET_V100
+                        ? launch_bf16_mma<Bf16ScheduleInstance<Bf16A16MmaR32T32K192S2, 6144>>
+                        : launch_bf16_tma_mma<Bf16ScheduleInstance<Bf16A16TmaR64T128K64S2, 6144>>);
 }
 } // namespace ninfer::ops::detail

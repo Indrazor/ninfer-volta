@@ -1,3 +1,4 @@
+#include "core/platform.h"
 #include "ops/linear/projection/fp8/fp8_shapes.h"
 #include "ops/linear/projection/fp8/fp8_launch.cuh"
 
@@ -49,7 +50,9 @@ void launch_a8(const Tensor& x, const Weight& weight, Tensor& out, Fp8A8Workspac
     launch_fp8_a8_tma<Geometry, Bulk>(x, weight, out, scratch, stream);
 }
 
-bool uses_a8(std::int32_t, std::int32_t max_tokens) { return max_tokens >= 5; }
+bool uses_a8(std::int32_t, std::int32_t max_tokens) {
+        return NINFER_TARGET_V100 ? false : max_tokens >= 5;
+    }
 
 std::size_t partial_capacity_bytes(std::int32_t max_tokens) {
     // Reserve one wave for any interval using the bulk route. The allocation is
