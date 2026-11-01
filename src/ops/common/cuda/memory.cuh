@@ -91,7 +91,9 @@ __device__ __forceinline__ unsigned char* shared_storage() {
     static_assert(Bytes > 0 && Bytes <= 99 * 1024);
     // sm_70 RDC: nvlink merges whole static arenas into every entry that shares a
     // helper, so anything at/above one full page-pair must be dynamic.
-    if constexpr (Bytes >= 48 * 1024) {
+    // sm_70 RDC: nvlink merges weak static arenas across TUs and charges every
+    // entry that references them, so mid-size MMA storage must be dynamic too.
+    if constexpr (Bytes >= 32 * 1024) {
         extern __shared__ __align__(16) unsigned char dynamic_storage[];
         return dynamic_storage;
     } else {
