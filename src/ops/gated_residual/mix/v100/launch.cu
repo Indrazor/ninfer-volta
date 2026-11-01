@@ -2,7 +2,6 @@
 #include "ops/common/host/launch.h"
 #include "ops/gated_residual/mix/kernel/output.cuh"
 #include "ops/gated_residual/mix/kernel/up_mma_mix.cuh"
-#include "ops/gated_residual/mix/kernel/up_tma_mix.cuh"
 #include "ops/linear/kernels/bf16/bf16_template_launch.cuh"
 #include "ops/linear/kernels/bf16/bf16_split_k_launch.cuh"
 
@@ -55,27 +54,23 @@ void down(Operands o, Down schedule, Scratch scratch, cudaStream_t stream) {
             p, output, identity, partials, stream);
         break;
     case Down::TmaSplit2:
-        launch_bf16_a16_tma_split_k_mma<
-            DownSchedule<Form, Bf16A16TmaMmaSchedule<32, 64, 64, 16, 8, 4, 1>>, 2>(
+        launch_bf16_a16_split_k_mma<DownSchedule<Form, SplitSchedule<16, 16, 128, 2>>, 2>(
             p, output, identity, partials, stream);
         break;
     case Down::TmaSplit4:
-        launch_bf16_a16_tma_split_k_mma<
-            DownSchedule<Form, Bf16A16TmaMmaSchedule<32, 64, 64, 16, 8, 4, 1>>, 4>(
+        launch_bf16_a16_split_k_mma<DownSchedule<Form, SplitSchedule<16, 16, 128, 2>>, 4>(
             p, output, identity, partials, stream);
         break;
     case Down::Tma96Split4:
-        launch_bf16_a16_tma_split_k_mma<
-            DownSchedule<Form, Bf16A16TmaMmaSchedule<32, 96, 64, 16, 16, 3, 1>>, 4>(
+        launch_bf16_a16_split_k_mma<DownSchedule<Form, SplitSchedule<32, 32, 64, 1>>, 4>(
             p, output, identity, partials, stream);
         break;
     case Down::Tma96Split8:
-        launch_bf16_a16_tma_split_k_mma<
-            DownSchedule<Form, Bf16A16TmaMmaSchedule<32, 96, 64, 16, 16, 3, 1>>, 8>(
+        launch_bf16_a16_split_k_mma<DownSchedule<Form, SplitSchedule<32, 32, 64, 1>>, 8>(
             p, output, identity, partials, stream);
         break;
     case Down::Tma80:
-        launch_bf16_a16_tma_mma<DownSchedule<Form, Bf16A16TmaMmaSchedule<32, 80, 64, 16, 8, 5, 1>>>(
+        launch_bf16_a16_mma<DownSchedule<Form, SplitSchedule<32, 80, 64, 1>>>(
             p, output, identity, stream);
         break;
     }
@@ -94,17 +89,8 @@ void folded_up(Operands o, Scratch scratch, cudaStream_t stream) {
     });
 }
 
-template <int Features>
-void tma_folded_up(Operands o, Scratch scratch, cudaStream_t stream) {
-    using S = Bf16ScheduleInstance<Bf16A16TmaMmaSchedule<kStreams * Features, 64, 64, 32, 16, 2, 1>,
-                                   kRank>;
-    const Bf16A16Operands p{static_cast<const __nv_bfloat16*>(scratch.activation),
-                            static_cast<const __nv_bfloat16*>(o.up), kResidualWidth, kRank,
-                            o.columns};
-    launch_bf16_a16_tma_mma<S, 1, LinearBf16Output, TmaMixEpilogue, StripedTmaWeightAccess>(
-        p, {static_cast<__nv_bfloat16*>(o.output), kWidth},
-        {static_cast<const __nv_bfloat16*>(o.normalized)}, stream);
-}
+// Volta: TMA folded-up schedules route to the SIMT folded kernel; the plan
+// selector may still return Tma* enums and the launcher remaps them.
 
 } // namespace
 
@@ -121,10 +107,10 @@ void launch(Kind kind, Operands o, Plan p, Scratch scratch, CudaExecutionView ex
         folded_up<32, 32>(o, scratch, execution.stream());
         break;
     case Up::TmaFolded16x64:
-        tma_folded_up<16>(o, scratch, execution.stream());
+        folded_up<16, 16>(o, scratch, execution.stream());
         break;
     case Up::TmaFolded32x64:
-        tma_folded_up<32>(o, scratch, execution.stream());
+        folded_up<32, 32>(o, scratch, execution.stream());
         break;
     }
 }
