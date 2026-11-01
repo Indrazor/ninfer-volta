@@ -1,3 +1,4 @@
+#include "core/platform.h"
 #include "core/weight.h"
 #include "ops/linear_attention/gated_delta_net/input_conv/nvfp4/launch.h"
 #include "core/device.h"
@@ -43,7 +44,7 @@ struct Plan {
 };
 
 Plan select_projection(int tokens) {
-    if (tokens >= 512) return {Nvfp4ScaleLayout::Tiled256, launch_tma};
+    if (tokens >= 512 && !NINFER_TARGET_V100) return {Nvfp4ScaleLayout::Tiled256, launch_tma};
     if (tokens <= 64) return {Nvfp4ScaleLayout::RowMajor, launch_gemm<M32N64>};
     if (tokens <= 96) return {Nvfp4ScaleLayout::RowMajor, launch_gemm<M32N128>};
     if (tokens <= 128) return {Nvfp4ScaleLayout::RowMajor, launch_gemm<M128N128Pipelined>};

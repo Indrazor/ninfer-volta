@@ -1,4 +1,5 @@
 #include "core/weight.h"
+#include "core/platform.h"
 #include "ops/linear/swiglu/nvfp4/dispatch.h"
 
 #include "core/layout.h"
@@ -34,7 +35,7 @@ Nvfp4LinearSwiGluRoute select_route(LinearPolicy policy, std::int32_t tokens) {
     if (tokens <= 4) { return Nvfp4LinearSwiGluRoute::SmallTFusedA16; }
     // This route dispatches its own fused kernel rather than a Linear shape's, so it carries its
     // own condition; the call site below forces the matching scale layout.
-    if (tokens >= 256) { return Nvfp4LinearSwiGluRoute::TmaFusedA4; }
+    if (tokens >= 256 && !NINFER_TARGET_V100) { return Nvfp4LinearSwiGluRoute::TmaFusedA4; }
     return Nvfp4LinearSwiGluRoute::FusedA4;
 }
 

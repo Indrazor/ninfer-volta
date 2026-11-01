@@ -1,3 +1,4 @@
+#include "core/platform.h"
 #include "ops/linear/split/nvfp4/shapes/n14336_k5120/launch.h"
 #include "core/weight.h"
 #include "core/device.h"
@@ -19,7 +20,7 @@ using M128N128Pipelined = Nvfp4A4MmaSchedule<128, 128, 256, 4, 2, 2, 1>;
 using M128N128Resident  = Nvfp4A4MmaSchedule<128, 128, 256, 4, 2, 1, 2>;
 
 // The quantizer and contraction must select the same activation scale layout.
-constexpr bool uses_tma(std::int32_t tokens) { return tokens >= 512; }
+constexpr bool uses_tma(std::int32_t tokens) { return tokens >= 512 && !NINFER_TARGET_V100; }
 
 template <class Schedule>
 void launch_gemm(const Weight& weight, std::span<const Tensor> outputs, Nvfp4A4Workspace workspace,

@@ -1,3 +1,4 @@
+#include "core/platform.h"
 #include "ops/linear/add/nvfp4/launch.cuh"
 
 namespace ninfer::ops::detail {
@@ -29,7 +30,7 @@ LinearAddLaunch select_a16(int tokens) {
 
 Nvfp4LinearAddPlan select_nvfp4_add_n5120_k6144(LinearPolicy policy, std::int32_t tokens) {
     if (!allows_a4(policy) || tokens < 17) return {select_a16(tokens)};
-    if (tokens >= 1024)
+    if (tokens >= 1024 && !NINFER_TARGET_V100)
         return {nullptr, launch_nvfp4_add_n5120_k6144_tma, Nvfp4ScaleLayout::Tiled256};
     if (tokens <= 64)
         return {nullptr,

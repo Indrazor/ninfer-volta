@@ -1,8 +1,11 @@
+#include "core/platform.h"
 #include "ops/linear/split/fp8/shapes/n14336_k5120/launch.h"
 
 namespace ninfer::ops::detail::linear_split::fp8_n14336_k5120 {
 namespace {
-bool quantized(LinearPolicy policy, int columns) { return allows_a8(policy) && columns >= 17; }
+bool quantized(LinearPolicy policy, int columns) {
+    return allows_a8(policy) && columns >= 17 && !NINFER_TARGET_V100;
+}
 
 std::size_t capacity(LinearPolicy policy, std::int32_t, std::int32_t last) {
     return quantized(policy, last)

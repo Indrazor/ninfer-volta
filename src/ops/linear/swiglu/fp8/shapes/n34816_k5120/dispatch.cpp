@@ -1,4 +1,5 @@
 #include "core/weight.h"
+#include "core/platform.h"
 #include "ops/linear/swiglu/fp8/dispatch.h"
 
 #include "ops/linear/kernels/fp8/fp8_a8_plan.h"
@@ -23,7 +24,8 @@ Fp8LinearSwiGluRoute select_route(LinearPolicy policy, std::int32_t tokens) {
     if (!allows_a8(policy)) {
         throw std::invalid_argument("fp8 linear_swiglu admits only A16 or A8");
     }
-    return tokens >= 5 ? Fp8LinearSwiGluRoute::A8 : Fp8LinearSwiGluRoute::A16;
+    return (tokens >= 5 && !NINFER_TARGET_V100) ? Fp8LinearSwiGluRoute::A8
+                                                : Fp8LinearSwiGluRoute::A16;
 }
 
 void launch_a16(const Tensor& x, const Weight& weight, Tensor& out, cudaStream_t stream) {
@@ -40,7 +42,7 @@ std::size_t fp8_linear_swiglu_workspace_capacity_bytes(LinearPolicy policy, std:
     }
     (void)select_route(policy, min_tokens);
     (void)select_route(policy, max_tokens);
-    const bool interval_uses_a8 = allows_a8(policy) && max_tokens >= 5;
+    const bool interval_uses_a8 = allows_a8(policy) && max_tokens >= 5 && !NINFER_TARGET_V100;
     return interval_uses_a8 ? fp8_a8_workspace_capacity_bytes(
                                   max_tokens, Fp8N34816K5120::kInputRows,
                                   fp8_linear_swiglu_partial_capacity_bytes(max_tokens))

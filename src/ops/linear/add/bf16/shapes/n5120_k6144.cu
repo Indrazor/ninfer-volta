@@ -1,3 +1,4 @@
+#include "core/platform.h"
 #include "ops/linear/add/dispatch.h"
 #include "ops/linear/kernels/bf16/bf16_instances.cuh"
 #include "ops/linear/kernels/bf16/bf16_template_launch.cuh"
@@ -53,9 +54,10 @@ LinearAddLaunch select_bf16_linear_add(std::int32_t rows, std::int32_t k, std::i
     if (tokens == 4) return launch_exact<4>;
     if (tokens <= 32) return launch_mma<Bf16A16MmaR32T32K256S3>;
     if (tokens <= 64) return launch_mma<Bf16A16MmaR32T32K192S2>;
-    if (tokens <= 96) return launch_tma<Bf16A16TmaR64T32K64S3>;
-    if (tokens <= 128) return launch_tma<Bf16A16TmaR64T64K128S2>;
-    if (tokens <= 256) return launch_tma<Bf16A16TmaR64T64K64S3>;
-    return launch_tma<Bf16A16TmaR64T128K64S2>;
+    if (tokens <= 96 && !NINFER_TARGET_V100) return launch_tma<Bf16A16TmaR64T32K64S3>;
+    if (tokens <= 128 && !NINFER_TARGET_V100) return launch_tma<Bf16A16TmaR64T64K128S2>;
+    if (tokens <= 256 && !NINFER_TARGET_V100) return launch_tma<Bf16A16TmaR64T64K64S3>;
+    if (!NINFER_TARGET_V100) return launch_tma<Bf16A16TmaR64T128K64S2>;
+    return tokens <= 768 ? launch_mma<Bf16A16MmaR32T32K256S3> : launch_mma<Bf16A16MmaR32T32K192S2>;
 }
 } // namespace ninfer::ops::detail

@@ -1,3 +1,4 @@
+#include "core/platform.h"
 #include "ops/linear/add/fp8/launch.cuh"
 
 namespace ninfer::ops::detail {
@@ -26,7 +27,7 @@ using Bulk      = Fp8A8TmaSplitKSchedule<Fp8A8TmaMmaSchedule<128, 256, 128, 2, 4
 } // namespace
 
 Fp8LinearAddPlan select_fp8_add_n5120_k17408(LinearPolicy policy, std::int32_t tokens) {
-    if (!allows_a8(policy) || tokens < 20) return {select_a16(tokens)};
+    if (!allows_a8(policy) || tokens < 20 || NINFER_TARGET_V100) return {select_a16(tokens)};
     const std::size_t partial_bytes = tokens > 384   ? Bulk::kPartialBytes
                                       : tokens > 256 ? Wide::kPartialBytes
                                       : tokens > 128 ? Mid::kPartialBytes
