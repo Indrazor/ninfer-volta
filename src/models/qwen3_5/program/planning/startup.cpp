@@ -573,8 +573,12 @@ void validate_target_options(const execution::ModelProfile& profile, DeviceConte
         }
         break;
     }
-    if (device.compute_capability() != 120) {
-        throw std::invalid_argument("Qwen3.5 family runtime requires compute capability 12.0");
+    // The v100 port runs the same planning with SIMT fallbacks on Volta;
+    // mainstream builds still require Blackwell (sm_120).
+    if (device.compute_capability() != (NINFER_TARGET_V100 ? 70 : 120)) {
+        throw std::invalid_argument(
+            "Qwen3.5 family runtime requires compute capability " +
+            std::string(NINFER_TARGET_V100 ? "7.0" : "12.0"));
     }
 }
 
